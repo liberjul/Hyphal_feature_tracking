@@ -119,3 +119,6 @@ The file `<image_prefix>speed_data.csv` contains data on each measured distance 
 I will be adding scripts for training on new images soon, but my method is based on this [tutorial](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html).
 
 The image dimensions, labels for plots, and statistics can all be changed. Please send any recommendations you may have.
+
+## Attributions
+Much of the code used to make this model work is borrowed from the [Tensorflow Object Detection API tutorial](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/index.html).

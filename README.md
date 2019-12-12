@@ -67,7 +67,7 @@ You can adjust the values of `CONF_THR` and `OUTLIER_PROP` as you see fit.
 To change the folder destinations, edit any of the variables beginning with `PATH`.
 
 ### The Images
-Make sure the image names are in this format: `<image_prefix>XXX.jpg`, where the `image_prefix` is constant and the `XXX` are chronological image numbers. Look at the example images included in test ims.
+Make sure the image names are in this format: `<image_prefix>XXX.jpg`, where the `image_prefix` is constant and the `XXX` are chronological image numbers. Look at the example images included in `test_ims/`.
 
 ## Testing
 

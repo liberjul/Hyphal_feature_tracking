@@ -97,6 +97,7 @@ JU15B_MEA_60000_4_speed_data.csv
 JU15B_MEA_60000_4_speed_distribution.jpg
 JU15B_MEA_60000_4_speed_vs_time.jpg
 ```
+![image](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/JU15B_MEA_60000_4_speed_distribution.jpg)
 
 There will also be two `.mp4` files in the `model_annots/` directory and two subfolders in `model_annots/` with the images used to make the videos.
 

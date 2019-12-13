@@ -21,7 +21,7 @@ Requirements:
 git clone https://github.com/liberjul/Hyphal_feature_tracking
 ```
 
-### If using conda (installed from Anaconda):
+### If using conda (installed from [Anaconda](https://www.anaconda.com/distribution/)):
 You can do this easiest in the Anaconda Prompt
 ```
 conda create -n hf_tracking python=3.7

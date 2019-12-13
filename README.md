@@ -56,7 +56,7 @@ git clone https://github.com/tensorflow/models
 cd models/research
 protoc object_detection/protos/*.proto --python_out=.
 export PYTHONPATH=$PYTHONPATH:`pwd`:`pwd`/slim
-```.
+```
 If `pip install` fails, it may be helpful to add the `--user` flag, so the command would resemble `pip install --user tensorflow`.
 More detailed instructions can be found [here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/installation.md).
 

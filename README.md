@@ -1,6 +1,5 @@
 # Hyphal_feature_tracking
-
-![image](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/model_annots/JU15B_MEA_60000_4_annot_3pc_thresh/JU15B_MEA_60000_4_078_annot.jpg)
+![image](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/model_annots/JU15B_MEA_60000_4_annot_3pc_thresh/JU15B_MEA_60000_4_082_annot.jpg)
 
 This repository employs [TensorFlow's](https://github.com/tensorflow/tensorflow) object detection algorithm to identify and track growing tips of fungi or similar biological objects, as they move in a series of images. The example images were recorded at 100X magnification at the edge of a fungal colony, using a custom-timed camera setup on a microscope.
 
@@ -57,7 +56,8 @@ git clone https://github.com/tensorflow/models
 cd models/research
 protoc object_detection/protos/*.proto --python_out=.
 export PYTHONPATH=$PYTHONPATH:`pwd`:`pwd`/slim
-```
+```.
+If `pip install` fails, it may be helpful to add the `--user` flag, so the command would resemble `pip install --user tensorflow`.
 More detailed instructions can be found [here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/installation.md).
 
 ## The Data

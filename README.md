@@ -4,7 +4,7 @@ This repository employs [TensorFlow's](https://github.com/tensorflow/tensorflow)
 
 Requirements:
 - Python >=3.6
-- TensorFlow >=1.4
+- TensorFlow >=1.14
 - Matplotlib
 - Numpy
 - Pillow 1.0
@@ -24,11 +24,13 @@ You can do this easiest in the Anaconda Prompt
 ```
 conda create -n hf_tracking python=3.7
 conda activate hf_tracking
-conda install tensorflow
+conda install tensorflow=1.14.0
 conda install matplotlib
 conda install numpy
 conda install pillow
 conda install imageio
+conda install pandas
+conda install -c conda-forge imageio-ffmpeg
 ```
 
 Download object_detection models

@@ -7,12 +7,49 @@ from scipy.spatial import distance_matrix
 from matplotlib import pyplot as plt
 from object_detection.utils import label_map_util
 from object_detection.utils import visualization_utils as vis_util
-from use_model import load_image_into_numpy_array, save_image, calc_velocity, time_scatter_plot, interval_hist
 
-##### SET THIS BLOCK BASED ON DIRECTORY STRUCTURE, IMAGE ATTRIBUTES, AND QUALITY THRESHOLDS #####
+def load_image_into_numpy_array(image):
+    (im_width, im_height) = image.size
+    return np.array(image.getdata()).reshape(
+        (im_height, im_width, 3)).astype(np.uint8)
+
+
+def save_image(data, filename):
+  sizes = np.shape(data)
+  fig = plt.figure(figsize=(1,1))
+  ax = plt.Axes(fig, [0., 0., 1., 1.])
+  ax.set_axis_off()
+  fig.add_axes(ax)
+  ax.imshow(data, cmap = plt.get_cmap("bone"))
+  plt.savefig(filename,dpi = 1200)
+  plt.close()
+
+def calc_velocity(box_dat1, box_dat2):
+    dist = distance_matrix(box_dat1, box_dat2) # calculate euclidean distances between all high-confidence tips
+    min_dists = np.amin(dist, axis=0) # Find the minimum distance between boxes
+    arg_min_dist = np.argmin(dist, axis=0) # Find the index of the minimum distance
+    delta_y = box_dat2[np.arange(len(min_dists)),0] - box_dat1[arg_min_dist, 0] # Change in y
+    delta_x = box_dat2[np.arange(len(min_dists)), 1] - box_dat1[arg_min_dist, 1] # Change in x
+    norm_dy, norm_dx = delta_y/min_dists, delta_x/min_dists # normalize by distance
+    return min_dists, norm_dy, norm_dx
+
+def time_scatter_plot(times, intervals, pref):
+    plt.scatter(times, intervals)
+    plt.xlabel("Frame")
+    plt.ylabel("Speed of tip movement (um/min)")
+    plt.title("Hyphal tip speed progression")
+    plt.savefig(F"{pref}speed_vs_time.jpg", dpi=1000)
+
+def interval_hist(intervals, pref):
+    plt.hist(intervals, bins = 30)
+    plt.xlabel("Speed of tip movement (um/min)")
+    plt.ylabel("Count")
+    plt.title("Distribution of hyphal tip speeds")
+    plt.savefig(F"{pref}speed_distribution.jpg", dpi=1000)
+
 def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v3.pb',
-    PATH_TO_LABELS='./annotations/label_map.pbtxt',
-    PATH_TO_ANNOT_IMS='./test_ims/', FRAME_LENGTH=1319.9,
+    PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
+    PATH_TO_ANNOT_IMS='./model_annots/', FRAME_LENGTH=1319.9,
     FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.03,
     OUTLIER_PROP=0.80, NUM_CLASSES=1, PATH_TO_CSV=None):
 
@@ -21,7 +58,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v3.pb',
         PREF: Image file prefix.
         PATH_TO_CKPT: Path to frozen detection graph. This is the actual model that is used for the object detection.
         PATH_TO_LABELS: List of the strings that is used to add correct label for each box.
-        PATH_TO_ANNOT_IMS: Path to image files.
+        PATH_TO_IMS: Path to image files.
+        PATH_TO_ANNOT_IMS: Path to directory to store annotated images.
         FRAME_LENGTH: Frame length in um, depends on microscope and magnification.
         FRAME_WIDTH: Frame width in um, depends on microscope and magnification.
         FRAME_TIME: Minutes between frames.

@@ -18,7 +18,7 @@ Requirements:
 
 To learn about the repository, please try the Google Colab notebook:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/Hyphal_feature_tracking_demo.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/liberjul/Hyphal_feature_tracking/blob/master/Hyphal_feature_tracking_demo.ipynb)
 
 ## Installation
 ```

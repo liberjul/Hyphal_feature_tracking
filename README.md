@@ -1,10 +1,11 @@
 # Hyphal_feature_tracking
+![image](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/model_annots/JU15B_MEA_60000_4_annot_3pc_thresh/JU15B_MEA_60000_4_082_annot.jpg)
 
-This repository employs [TensorFlow's](https://github.com/tensorflow/tensorflow) object detection algorithm to identify and track growing tips of fungi or similar biological objects.
+This repository employs [TensorFlow's](https://github.com/tensorflow/tensorflow) object detection algorithm to identify and track growing tips of fungi or similar biological objects, as they move in a series of images. The example images were recorded at 100X magnification at the edge of a fungal colony, using a custom-timed camera setup on a microscope.
 
 Requirements:
 - Python >=3.6
-- TensorFlow >=1.4
+- TensorFlow >=1.14
 - Matplotlib
 - Numpy
 - Pillow 1.0
@@ -19,16 +20,18 @@ Requirements:
 git clone https://github.com/liberjul/Hyphal_feature_tracking
 ```
 
-### If using conda (installed from Anaconda):
+### If using conda (installed from [Anaconda](https://www.anaconda.com/distribution/)):
 You can do this easiest in the Anaconda Prompt
 ```
 conda create -n hf_tracking python=3.7
 conda activate hf_tracking
-conda install tensorflow
+conda install tensorflow=1.14.0
 conda install matplotlib
 conda install numpy
 conda install pillow
 conda install imageio
+conda install pandas
+conda install -c conda-forge imageio-ffmpeg
 ```
 
 Download object_detection models
@@ -44,14 +47,17 @@ conda develop .
 pip install tensorflow
 pip install matplotlib
 pip install numpy
+pip install pandas
 pip install pillow
 pip install imageio
+pip install imageio-ffmpeg
 
 git clone https://github.com/tensorflow/models
 cd models/research
 protoc object_detection/protos/*.proto --python_out=.
 export PYTHONPATH=$PYTHONPATH:`pwd`:`pwd`/slim
 ```
+If `pip install` fails, it may be helpful to add the `--user` flag, so the command would resemble `pip install --user tensorflow`.
 More detailed instructions can be found [here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/installation.md).
 
 ## The Data
@@ -119,3 +125,6 @@ The file `<image_prefix>speed_data.csv` contains data on each measured distance 
 I will be adding scripts for training on new images soon, but my method is based on this [tutorial](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html).
 
 The image dimensions, labels for plots, and statistics can all be changed. Please send any recommendations you may have.
+
+## Attributions
+Much of the code used to make this model work is borrowed from the [Tensorflow Object Detection API tutorial](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/index.html).

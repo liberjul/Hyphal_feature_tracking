@@ -101,6 +101,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v3.pb',
             with open(PATH_TO_CSV, "w") as file:
                 file.write("Frame,box1,box2,box3,box4,score,class\n")
                 test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg")
+                test_ims.sort()
                 all_ims = []
                 for i in test_ims:
                     print(i)

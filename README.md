@@ -120,6 +120,11 @@ Run the command based on your image file prefixes:
 ```
 python use_model.py <image_prefix>
 ```
+Or, you can run the following in a python script:
+```
+import tip_tracking as tt:
+tt.use_model(<image_prefix>)
+```
 
 ### What is the output data?
 

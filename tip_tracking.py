@@ -47,10 +47,10 @@ def interval_hist(intervals, pref):
     plt.title("Distribution of hyphal tip speeds")
     plt.savefig(F"{pref}speed_distribution.jpg", dpi=1000)
 
-def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v3.pb',
+def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
     PATH_TO_ANNOT_IMS='./model_annots/', FRAME_LENGTH=1319.9,
-    FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.03,
+    FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3,
     OUTLIER_PROP=0.80, NUM_CLASSES=1, PATH_TO_CSV=None):
 
     '''

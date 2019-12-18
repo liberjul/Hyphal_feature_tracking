@@ -13,7 +13,7 @@ from object_detection.utils import visualization_utils as vis_util
 #Image file prefix
 PREF = sys.argv[1]
 # Path to frozen detection graph. This is the actual model that is used for the object detection.
-PATH_TO_CKPT = './training/frozen_inference_graph_v3.pb'
+PATH_TO_CKPT = './training/frozen_inference_graph_v4.pb'
 #Path to exported CSV of box annotations
 PATH_TO_CSV = F"box_data_{PREF}.csv"
 # List of the strings that is used to add correct label for each box.
@@ -27,7 +27,7 @@ FRAME_LENGTH, FRAME_WIDTH = (1319.9,989.9)
 # Minutes between frames
 FRAME_TIME = 1.0
 # Confidence threshold to use for annotations, as a float
-CONF_THR = 0.03
+CONF_THR = 0.3
 # Proportion of distances above which are considered outliers
 # This is used to remove distances which are not from tracking the same tip
 OUTLIER_PROP = 0.80

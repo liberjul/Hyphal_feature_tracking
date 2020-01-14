@@ -50,8 +50,8 @@ def interval_hist(intervals, pref):
 def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
     PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
-    FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3,
-    OUTLIER_PROP=0.80, NUM_CLASSES=1, PATH_TO_CSV=None):
+    FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
+     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None):
 
     '''
     Args:
@@ -60,6 +60,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         PATH_TO_LABELS: List of the strings that is used to add correct label for each box.
         PATH_TO_IMS: Path to image files.
         PATH_TO_ANNOT_IMS: Path to directory to store annotated images.
+        CSV_ONLY: True if only comma-seperated value file outputs is desired.
         FRAME_LENGTH: Frame length in um, depends on microscope and magnification.
         FRAME_WIDTH: Frame width in um, depends on microscope and magnification.
         FRAME_TIME: Minutes between frames.
@@ -67,11 +68,14 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         OUTLIER_PROP: Proportion of distances above which are considered outliers.
         NUM_CLASSES: Number of classes to detect
         PATH_TO_CSV: Path to exported CSV of box annotations.
+        SPEED_DAT_CSV: Name for speed data file.
     '''
 
     CONF_PER = int(100 * CONF_THR)
     if PATH_TO_CSV == None:
         PATH_TO_CSV = F"box_data_{PREF}.csv"
+    if SPEED_DAT_CSV == None:
+        SPEED_DAT_CSV = F"{PREF}speed_data.csv"
 
     # Load a (frozen) Tensorflow model into memory.
     detection_graph = tf.Graph()
@@ -178,7 +182,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         # Create dataframe to store output
         speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
         # Export dataframe as CSV file
-        speed_dat.to_csv(F"{PREF}speed_data.csv")
+        speed_dat.to_csv(SPEED_DAT_CSV)
 
     else:
         for i in range(len(ims_base)-1): # For each frame
@@ -223,7 +227,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         # Create dataframe to store output
         speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
         # Export dataframe as CSV file
-        speed_dat.to_csv(F"{PREF}speed_data.csv")
+        speed_dat.to_csv(SPEED_DAT_CSV)
         # Slice the intervals and time array to remove "outliers"
         ints_wo_outliers = intervals[intervals < np.quantile(intervals, .80)]
         times_wo_outliers = times[intervals < np.quantile(intervals, .80)]

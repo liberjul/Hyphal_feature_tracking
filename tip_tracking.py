@@ -171,7 +171,6 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
 
     if CSV_ONLY:
         for i in range(len(ims_base)-1): # For each frame
-            im2 = plt.imread(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{ims_base[i+1]}_annot.jpg") # Read in the next frame as an array
             box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
             min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
             intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array

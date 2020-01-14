@@ -49,7 +49,7 @@ def interval_hist(intervals, pref):
 
 def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
-    PATH_TO_ANNOT_IMS='./model_annots/', FRAME_LENGTH=1319.9,
+    PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
     FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3,
     OUTLIER_PROP=0.80, NUM_CLASSES=1, PATH_TO_CSV=None):
 
@@ -90,11 +90,11 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
     category_index = label_map_util.create_category_index(categories)
 
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/"):
+    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and !CSV_ONLY:
         os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/")
-    else:
+    elif !CSV_ONLY:
             print("Overwritting annotated images")
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/"):
+    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and !CSV_ONLY:
         os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
     with detection_graph.as_default():
         with tf.compat.v1.Session(graph=detection_graph) as sess:
@@ -139,18 +139,18 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                     for x in range(np.squeeze(boxes).shape[0]):
                         buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
                     file.write(buffer)
-
-                    save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
-                    all_ims.append(image_np)
+                    if !CSV_ONLY:
+                        save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
+                        all_ims.append(image_np)
     # Saves annotated frames to a .mp4 file
-    imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
+    if !CSV_ONLY:
+        imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
 
     ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg") # Gets list of all saved images
     ims.sort() # Sorts alphabetically
     ims_base = [] # List to store basenames without extension
     for i in ims:
         ims_base.append(os.path.basename(i).split(".")[0])
-
 
     intervals = np.array([]) # array to store distance intervals between tips
     times = np.array([]) # array to store times for each interval
@@ -165,66 +165,81 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     # Select frame which meet these criterea: 1) the first frame and 2) are above confidence threshold
     box_dat_sub1 = np.array(box_dat[(box_dat.Frame == ims_base[0]) & (box_dat.score > CONF_THR)].iloc[:,7:])
 
+    if CSV_ONLY:
+        for i in range(len(ims_base)-1): # For each frame
+            im2 = plt.imread(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{ims_base[i+1]}_annot.jpg") # Read in the next frame as an array
+            box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
+            min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
+            intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
+            dy_comps = np.concatenate((dy_comps, norm_dy))
+            dx_comps = np.concatenate((dx_comps, norm_dx))
+            times = np.concatenate((times, np.repeat(i*FRAME_TIME, len(min_dists)))) # Add frame number to times
+            box_dat_sub1 = box_dat_sub2
+        # Create dataframe to store output
+        speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
+        # Export dataframe as CSV file
+        speed_dat.to_csv(F"{PREF}speed_data.csv")
 
-    for i in range(len(ims_base)-1): # For each frame
-        im2 = plt.imread(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{ims_base[i+1]}_annot.jpg") # Read in the next frame as an array
-        box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
+    else:
+        for i in range(len(ims_base)-1): # For each frame
+            im2 = plt.imread(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{ims_base[i+1]}_annot.jpg") # Read in the next frame as an array
+            box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
 
-        min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
+            min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
 
-        intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
-        dy_comps = np.concatenate((dy_comps, norm_dy))
-        dx_comps = np.concatenate((dx_comps, norm_dx))
+            intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
+            dy_comps = np.concatenate((dy_comps, norm_dy))
+            dx_comps = np.concatenate((dx_comps, norm_dx))
 
-        times = np.concatenate((times, np.repeat(i*FRAME_TIME, len(min_dists)))) # Add frame number to times
-        ints_wo_outliers = intervals[intervals < np.quantile(intervals, OUTLIER_PROP)] # Remove top proportion as outliers
-        medians.append(np.median(ints_wo_outliers)) # Store median of distances
-        plt.clf() # Clear figure
-        # Set up figure with subplots
-        fig = plt.figure()
-        gs = fig.add_gridspec(3,2)
-        ax1 = fig.add_subplot(gs[0,0])
-        ax2 = fig.add_subplot(gs[0,1])
-        ax3 = fig.add_subplot(gs[1:3,:])
-        # Plot median line chart
-        ax1.plot(medians)
-        ax1.set_ylabel("Median tip speed (um/min)")
-        ax1.set_xlabel("Frame number")
-        ax1.set_title("Median hyphal tip speed")
-        # Plot histogram of tip speeds/intervals
-        ax2.hist(ints_wo_outliers, bins = 30)
-        ax2.set_xlabel("Tip speed (um/min)")
-        ax2.set_ylabel("Count")
-        ax2.set_title("Distribution of hyphal tip speeds")
-        ax2.axis("tight")
-        # Show annotated images
-        ax3.imshow(im2)
-        ax3.axis("off")
-        plt.tight_layout()
-        # Save the annotated figure
-        plt.savefig(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/{ims_base[i+1]}_annot_w_hist.jpg", dpi=400)
-        # Next frame
-        box_dat_sub1 = box_dat_sub2
-    # Create dataframe to store output
-    speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
-    # Export dataframe as CSV file
-    speed_dat.to_csv(F"{PREF}speed_data.csv")
-    # Slice the intervals and time array to remove "outliers"
-    ints_wo_outliers = intervals[intervals < np.quantile(intervals, .80)]
-    times_wo_outliers = times[intervals < np.quantile(intervals, .80)]
-    # Plot final histogram of intervals
-    plt.clf()
-    interval_hist(ints_wo_outliers, PREF)
+            times = np.concatenate((times, np.repeat(i*FRAME_TIME, len(min_dists)))) # Add frame number to times
+            ints_wo_outliers = intervals[intervals < np.quantile(intervals, OUTLIER_PROP)] # Remove top proportion as outliers
+            medians.append(np.median(ints_wo_outliers)) # Store median of distances
+            plt.clf() # Clear figure
+            # Set up figure with subplots
+            fig = plt.figure()
+            gs = fig.add_gridspec(3,2)
+            ax1 = fig.add_subplot(gs[0,0])
+            ax2 = fig.add_subplot(gs[0,1])
+            ax3 = fig.add_subplot(gs[1:3,:])
+            # Plot median line chart
+            ax1.plot(medians)
+            ax1.set_ylabel("Median tip speed (um/min)")
+            ax1.set_xlabel("Frame number")
+            ax1.set_title("Median hyphal tip speed")
+            # Plot histogram of tip speeds/intervals
+            ax2.hist(ints_wo_outliers, bins = 30)
+            ax2.set_xlabel("Tip speed (um/min)")
+            ax2.set_ylabel("Count")
+            ax2.set_title("Distribution of hyphal tip speeds")
+            ax2.axis("tight")
+            # Show annotated images
+            ax3.imshow(im2)
+            ax3.axis("off")
+            plt.tight_layout()
+            # Save the annotated figure
+            plt.savefig(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/{ims_base[i+1]}_annot_w_hist.jpg", dpi=400)
+            # Next frame
+            box_dat_sub1 = box_dat_sub2
+        # Create dataframe to store output
+        speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
+        # Export dataframe as CSV file
+        speed_dat.to_csv(F"{PREF}speed_data.csv")
+        # Slice the intervals and time array to remove "outliers"
+        ints_wo_outliers = intervals[intervals < np.quantile(intervals, .80)]
+        times_wo_outliers = times[intervals < np.quantile(intervals, .80)]
+        # Plot final histogram of intervals
+        plt.clf()
+        interval_hist(ints_wo_outliers, PREF)
 
-    # Plot scatter of intervals vs time
-    plt.clf()
-    time_scatter_plot(times_wo_outliers, ints_wo_outliers, PREF)
+        # Plot scatter of intervals vs time
+        plt.clf()
+        time_scatter_plot(times_wo_outliers, ints_wo_outliers, PREF)
 
-    # Get paths of images with charts
-    hist_and_box = glob.glob(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/*_annot_w_hist.jpg")
-    hist_and_box.sort() # Sort to correct order
-    all_ims = [] # List to store image arrays
-    for i in hist_and_box:
-        all_ims.append(plt.imread(i).copy()) # Add arrays to list
-    # Save video with charts and annotated images
-    imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh_w_hist.mp4", all_ims, fps=15)
+        # Get paths of images with charts
+        hist_and_box = glob.glob(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/*_annot_w_hist.jpg")
+        hist_and_box.sort() # Sort to correct order
+        all_ims = [] # List to store image arrays
+        for i in hist_and_box:
+            all_ims.append(plt.imread(i).copy()) # Add arrays to list
+        # Save video with charts and annotated images
+        imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh_w_hist.mp4", all_ims, fps=15)

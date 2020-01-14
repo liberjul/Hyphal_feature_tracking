@@ -94,11 +94,11 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
     category_index = label_map_util.create_category_index(categories)
 
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and !CSV_ONLY:
+    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and not CSV_ONLY:
         os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/")
-    elif !CSV_ONLY:
+    elif not CSV_ONLY:
             print("Overwritting annotated images")
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and !CSV_ONLY:
+    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and not CSV_ONLY:
         os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
     with detection_graph.as_default():
         with tf.compat.v1.Session(graph=detection_graph) as sess:
@@ -143,11 +143,11 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                     for x in range(np.squeeze(boxes).shape[0]):
                         buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
                     file.write(buffer)
-                    if !CSV_ONLY:
+                    if not CSV_ONLY:
                         save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
                         all_ims.append(image_np)
     # Saves annotated frames to a .mp4 file
-    if !CSV_ONLY:
+    if not CSV_ONLY:
         imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
 
     ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg") # Gets list of all saved images

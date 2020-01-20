@@ -1,5 +1,5 @@
 import numpy as np
-import os, glob, imageio, sys
+import os, glob, imageio, sys, time
 import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -51,7 +51,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
     PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
     FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
-     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None):
+     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None, LOG_FILE=None):
 
     '''
     Args:
@@ -69,8 +69,11 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         NUM_CLASSES: Number of classes to detect
         PATH_TO_CSV: Path to exported CSV of box annotations.
         SPEED_DAT_CSV: Name for speed data file.
+        LOG_FILE: Name for log file for timing data.
     '''
-
+    if LOG_FILE != None:
+        d_graph, l_and_c, box_time, int_create_time, int_exp_time, vid_exp_time = 0., 0., 0., 0., 0., 0.
+        start = time.clock()
     CONF_PER = int(100 * CONF_THR)
     if PATH_TO_CSV == None:
         PATH_TO_CSV = F"box_data_{PREF}.csv"
@@ -86,7 +89,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
             od_graph_def.ParseFromString(serialized_graph)
             tf.import_graph_def(od_graph_def, name='')
 
-
+    if LOG_FILE != None:
+        d_graph = time.clock()
     # Loading label map
     # Label maps map indices to category names
     label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
@@ -94,6 +98,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
     category_index = label_map_util.create_category_index(categories)
 
+    if LOG_FILE != None:
+        l_and_c = time.clock()
     if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and not CSV_ONLY:
         os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/")
     elif not CSV_ONLY:
@@ -146,6 +152,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                     if not CSV_ONLY:
                         save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
                         all_ims.append(image_np)
+    if LOG_FILE != None:
+        box_time = time.clock()
     # Saves annotated frames to a .mp4 file
     if not CSV_ONLY:
         imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
@@ -178,10 +186,14 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
             dx_comps = np.concatenate((dx_comps, norm_dx))
             times = np.concatenate((times, np.repeat(i*FRAME_TIME, len(min_dists)))) # Add frame number to times
             box_dat_sub1 = box_dat_sub2
+        if LOG_FILE != None:
+            int_create_time = time.clock()
         # Create dataframe to store output
         speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
         # Export dataframe as CSV file
         speed_dat.to_csv(SPEED_DAT_CSV)
+        if LOG_FILE != None:
+            int_exp_time = time.clock()
 
     else:
         for i in range(len(ims_base)-1): # For each frame
@@ -195,8 +207,11 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
             dx_comps = np.concatenate((dx_comps, norm_dx))
 
             times = np.concatenate((times, np.repeat(i*FRAME_TIME, len(min_dists)))) # Add frame number to times
+            if LOG_FILE != None:
+                int_create_time = time.clock()
             ints_wo_outliers = intervals[intervals < np.quantile(intervals, OUTLIER_PROP)] # Remove top proportion as outliers
             medians.append(np.median(ints_wo_outliers)) # Store median of distances
+
             plt.clf() # Clear figure
             # Set up figure with subplots
             fig = plt.figure()
@@ -245,4 +260,14 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         for i in hist_and_box:
             all_ims.append(plt.imread(i).copy()) # Add arrays to list
         # Save video with charts and annotated images
+        if LOG_FILE != None:
+            int_exp_time = time.clock()
         imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh_w_hist.mp4", all_ims, fps=15)
+        if LOG_FILE != None:
+            vid_exp_time = time.clock()
+    if LOG_FILE != None:
+        with open(LOG_FILE, "w") as lfile:
+            lfile.write(F"Load detection graph : {d_graph-start}\nLabel and category : {l_and_c-d_graph}\nBox calculation{box_time-l_and_c}\n")
+            lfile.write(F"Create interval data : {int_create_time-box_time}\nExport interval data : {int_exp_time-int_create_time}\n)
+            if not CSV_ONLY:
+                lfile.write(F"Video export time: {vid_exp_time-int_exp_time}")

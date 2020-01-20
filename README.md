@@ -1,5 +1,5 @@
 # Hyphal_feature_tracking
-![image](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/model_annots/JU15B_MEA_60000_4_annot_3pc_thresh/JU15B_MEA_60000_4_082_annot.jpg)
+![image](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/model_annots/JU15B_MEA_60000_4_annot_30pc_thresh/JU15B_MEA_60000_4_082_annot.jpg)
 
 This repository employs [TensorFlow's](https://github.com/tensorflow/tensorflow) object detection algorithm to identify and track growing tips of fungi or similar biological objects, as they move in a series of images. The example images were recorded at 100X magnification at the edge of a fungal colony, using a custom-timed camera setup on a microscope.
 

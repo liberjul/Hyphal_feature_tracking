@@ -135,21 +135,21 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                         [boxes, scores, classes, num_detections],
                         feed_dict={image_tensor: image_np_expanded})
                     # Visualization of the results of a detection.
-                    vis_util.visualize_boxes_and_labels_on_image_array(
-                        image_np,
-                        np.squeeze(boxes),
-                        np.squeeze(classes).astype(np.int32),
-                        np.squeeze(scores),
-                        category_index,
-                        use_normalized_coordinates=True,
-                        line_thickness=4,
-                        max_boxes_to_draw=100,
-                        min_score_thresh=CONF_THR)
                     buffer = ""
                     for x in range(np.squeeze(boxes).shape[0]):
                         buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
                     file.write(buffer)
                     if not CSV_ONLY:
+                        vis_util.visualize_boxes_and_labels_on_image_array(
+                            image_np,
+                            np.squeeze(boxes),
+                            np.squeeze(classes).astype(np.int32),
+                            np.squeeze(scores),
+                            category_index,
+                            use_normalized_coordinates=True,
+                            line_thickness=4,
+                            max_boxes_to_draw=100,
+                            min_score_thresh=CONF_THR)
                         save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
                         all_ims.append(image_np)
     if LOG_FILE != None:

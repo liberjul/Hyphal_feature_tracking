@@ -268,6 +268,6 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     if LOG_FILE != None:
         with open(LOG_FILE, "a+") as lfile:
             lfile.write(F"Load detection graph : {d_graph-start}\nLabel and category : {l_and_c-d_graph}\nBox calculation{box_time-l_and_c}\n")
-            lfile.write(F"Create interval data : {int_create_time-box_time}\nExport interval data : {int_exp_time-int_create_time}\n)
+            lfile.write(F"Create interval data : {int_create_time-box_time}\nExport interval data : {int_exp_time-int_create_time}\n")
             if not CSV_ONLY:
                 lfile.write(F"Video export time: {vid_exp_time-int_exp_time}")

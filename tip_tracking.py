@@ -4,7 +4,6 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from scipy.spatial import distance_matrix
-from matplotlib import pyplot as plt
 from object_detection.utils import label_map_util
 from object_detection.utils import visualization_utils as vis_util
 

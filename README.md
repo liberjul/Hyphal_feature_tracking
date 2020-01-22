@@ -67,7 +67,9 @@ More detailed instructions can be found [here](https://github.com/tensorflow/mod
 
 ## The Data
 
-The model was developed using ~ 1000 annotations of hyphal tips in micrographs. Therefore, you should be aiming to detect similar-looking objects in you images.
+The model was developed using ~ 1000 annotations of hyphal tips in micrographs. Therefore, you should be aiming to detect similar-looking objects in you images. However, other objects such as root hair tips can be detected using the same model:
+
+![image](https://github.com/liberjul/Hyphal_feature_tracking/blob/master/model_annots/root_hair_test_annot.jpg)
 
 ### What you need to know for accurate metrics:
  - What are the physical dimensions captured by each frame, in &mu;m

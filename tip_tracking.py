@@ -321,12 +321,6 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
 
     if LOG_FILE != None:
         l_and_c = time.clock()
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and not CSV_ONLY:
-        os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/")
-    elif not CSV_ONLY:
-            print("Overwritting annotated images")
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and not CSV_ONLY:
-        os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
     with detection_graph.as_default():
         with tf.compat.v1.Session(graph=detection_graph) as sess:
             if PATHS_TO_CSVS == None:
@@ -334,6 +328,12 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
                 for PREF in PREFS:
                     PATH_TO_CSVS.append(F"box_data_{PREF}.csv")
             for PATH_TO_CSV, PREF in zip(PATHS_TO_CSVS, PREFS):
+                if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and not CSV_ONLY:
+                    os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/")
+                elif not CSV_ONLY:
+                        print("Overwritting annotated images")
+                if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and not CSV_ONLY:
+                    os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
                 with open(PATH_TO_CSV, "w") as file:
                     file.write("Frame,box1,box2,box3,box4,score,class\n")
                     test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg")

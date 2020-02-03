@@ -14,22 +14,31 @@ def load_image_into_numpy_array(image):
 
 
 def save_image(data, filename):
-  sizes = np.shape(data)
-  fig = plt.figure(figsize=(1,1))
-  ax = plt.Axes(fig, [0., 0., 1., 1.])
-  ax.set_axis_off()
-  fig.add_axes(ax)
-  ax.imshow(data, cmap = plt.get_cmap("bone"))
-  plt.savefig(filename,dpi = 1200)
-  plt.close()
+    sizes = np.shape(data)
+    fig = plt.figure(figsize=(1,1))
+    ax = plt.Axes(fig, [0., 0., 1., 1.])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+    ax.imshow(data, cmap = plt.get_cmap("bone"))
+    plt.savefig(filename,dpi = 1200)
+    plt.close()
 
-def calc_velocity(box_dat1, box_dat2):
+def calc_velocity(box_dat1, box_dat2, edge_file=None, frame_num1=None, frame_num2=None):
     dist = distance_matrix(box_dat1, box_dat2) # calculate euclidean distances between all high-confidence tips
     min_dists = np.amin(dist, axis=0) # Find the minimum distance between boxes
     arg_min_dist = np.argmin(dist, axis=0) # Find the index of the minimum distance
-    delta_y = box_dat2[np.arange(len(min_dists)),0] - box_dat1[arg_min_dist, 0] # Change in y
+    delta_y = box_dat2[np.arange(len(min_dists)), 0] - box_dat1[arg_min_dist, 0] # Change in y
     delta_x = box_dat2[np.arange(len(min_dists)), 1] - box_dat1[arg_min_dist, 1] # Change in x
     norm_dy, norm_dx = delta_y/min_dists, delta_x/min_dists # normalize by distance
+    if edge_file != None:
+        rev_dist = distance_matrix(box_dat2, box_dat1)
+        rev_min_dists = np.amin(dist, axis=0) # Find the minimum distance between boxes
+        rev_arg_min_dist = np.argmin(dist, axis=0) # Find the index of the minimum distance
+        buffer = ""
+        for i in range(len(rev_min_dists)):
+            buffer += F"{frame_num2}_{i:02d},{frame_num1}_{rev_arg_min_dist[i]:02d},{box_dat2[i,0]},{box_dat2[i,1]},{box_dat1[rev_arg_min_dist[i],0]},{box_dat1[rev_arg_min_dist[i],1]},{rev_min_dists[i]}\n"
+        with open(edge_file, "a+") as ofile:
+            ofile.write(buffer)
     return min_dists, norm_dy, norm_dx
 
 def time_scatter_plot(times, intervals, pref):
@@ -50,7 +59,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
     PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
     FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
-     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None, LOG_FILE=None):
+     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None, LOG_FILE=None,
+     EDGELIST_FILE=None, REANNOTATE=True):
 
     '''
     Args:
@@ -69,6 +79,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         PATH_TO_CSV: Path to exported CSV of box annotations.
         SPEED_DAT_CSV: Name for speed data file.
         LOG_FILE: Name for log file for timing data.
+        EDGELIST_FILE: Name for a file to export nearest
+        REANNOTATE: If rerunning annotation should be performed.
     '''
     if LOG_FILE != None:
         d_graph, l_and_c, box_time, int_create_time, int_exp_time, vid_exp_time = 0., 0., 0., 0., 0., 0.
@@ -78,84 +90,88 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         PATH_TO_CSV = F"box_data_{PREF}.csv"
     if SPEED_DAT_CSV == None:
         SPEED_DAT_CSV = F"{PREF}speed_data.csv"
+    if EDGELIST_FILE != None:
+        with open(EDGELIST_FILE, "w") as ofile:
+            ofile.write("node_1,node_2,y1,x1,y2,x2,dist\n")
 
     # Load a (frozen) Tensorflow model into memory.
-    detection_graph = tf.Graph()
-    with detection_graph.as_default():
-        od_graph_def = tf.compat.v1.GraphDef()
-        with tf.io.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
-            serialized_graph = fid.read()
-            od_graph_def.ParseFromString(serialized_graph)
-            tf.import_graph_def(od_graph_def, name='')
+    if REANNOTATE:
+        detection_graph = tf.Graph()
+        with detection_graph.as_default():
+            od_graph_def = tf.compat.v1.GraphDef()
+            with tf.io.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
+                serialized_graph = fid.read()
+                od_graph_def.ParseFromString(serialized_graph)
+                tf.import_graph_def(od_graph_def, name='')
 
-    if LOG_FILE != None:
-        d_graph = time.clock()
-    # Loading label map
-    # Label maps map indices to category names
-    label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
-    categories = label_map_util.convert_label_map_to_categories(
-        label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
-    category_index = label_map_util.create_category_index(categories)
+        if LOG_FILE != None:
+            d_graph = time.clock()
+        # Loading label map
+        # Label maps map indices to category names
+        label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
+        categories = label_map_util.convert_label_map_to_categories(
+            label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
+        category_index = label_map_util.create_category_index(categories)
 
-    if LOG_FILE != None:
-        l_and_c = time.clock()
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and not CSV_ONLY:
-        os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/")
-    elif not CSV_ONLY:
-            print("Overwritting annotated images")
-    if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and not CSV_ONLY:
-        os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
-    with detection_graph.as_default():
-        with tf.compat.v1.Session(graph=detection_graph) as sess:
-            with open(PATH_TO_CSV, "w") as file:
-                file.write("Frame,box1,box2,box3,box4,score,class\n")
-                test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg")
-                test_ims.sort()
-                all_ims = []
-                for i in test_ims:
-                    print(i)
-                    # Read frame from camera
-                    image_np = plt.imread(i).copy()
-                    # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
-                    image_np_expanded = np.expand_dims(image_np, axis=0)
-                    # Extract image tensor
-                    image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-                    # Extract detection boxes
-                    boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
-                    # Extract detection scores
-                    scores = detection_graph.get_tensor_by_name('detection_scores:0')
-                    # Extract detection classes
-                    classes = detection_graph.get_tensor_by_name('detection_classes:0')
-                    # Extract number of detectionsd
-                    num_detections = detection_graph.get_tensor_by_name(
-                        'num_detections:0')
-                    # Actual detection.
-                    (boxes, scores, classes, num_detections) = sess.run(
-                        [boxes, scores, classes, num_detections],
-                        feed_dict={image_tensor: image_np_expanded})
-                    # Visualization of the results of a detection.
-                    buffer = ""
-                    for x in range(np.squeeze(boxes).shape[0]):
-                        buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
-                    file.write(buffer)
-                    if not CSV_ONLY:
-                        vis_util.visualize_boxes_and_labels_on_image_array(
-                            image_np,
-                            np.squeeze(boxes),
-                            np.squeeze(classes).astype(np.int32),
-                            np.squeeze(scores),
-                            category_index,
-                            use_normalized_coordinates=True,
-                            line_thickness=4,
-                            max_boxes_to_draw=100,
-                            min_score_thresh=CONF_THR)
-                        save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
-                        all_ims.append(image_np)
-    if LOG_FILE != None:
-        box_time = time.clock()
-    # Saves annotated frames to a .mp4 file
-    if not CSV_ONLY:
-        imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
+        if LOG_FILE != None:
+            l_and_c = time.clock()
+        if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/") and not CSV_ONLY:
+            os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/")
+        elif not CSV_ONLY:
+                print("Overwritting annotated images")
+        if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and not CSV_ONLY:
+            os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
+        with detection_graph.as_default():
+            with tf.compat.v1.Session(graph=detection_graph) as sess:
+                with open(PATH_TO_CSV, "w") as file:
+                    file.write("Frame,box1,box2,box3,box4,score,class\n")
+                    test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg")
+                    test_ims.sort()
+                    all_ims = []
+                    for i in test_ims:
+                        print(i)
+                        # Read frame from camera
+                        image_np = plt.imread(i).copy()
+                        # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+                        image_np_expanded = np.expand_dims(image_np, axis=0)
+                        # Extract image tensor
+                        image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+                        # Extract detection boxes
+                        boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+                        # Extract detection scores
+                        scores = detection_graph.get_tensor_by_name('detection_scores:0')
+                        # Extract detection classes
+                        classes = detection_graph.get_tensor_by_name('detection_classes:0')
+                        # Extract number of detectionsd
+                        num_detections = detection_graph.get_tensor_by_name(
+                            'num_detections:0')
+                        # Actual detection.
+                        (boxes, scores, classes, num_detections) = sess.run(
+                            [boxes, scores, classes, num_detections],
+                            feed_dict={image_tensor: image_np_expanded})
+                        # Visualization of the results of a detection.
+                        buffer = ""
+                        for x in range(np.squeeze(boxes).shape[0]):
+                            buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
+                        file.write(buffer)
+                        if not CSV_ONLY:
+                            vis_util.visualize_boxes_and_labels_on_image_array(
+                                image_np,
+                                np.squeeze(boxes),
+                                np.squeeze(classes).astype(np.int32),
+                                np.squeeze(scores),
+                                category_index,
+                                use_normalized_coordinates=True,
+                                line_thickness=4,
+                                max_boxes_to_draw=100,
+                                min_score_thresh=CONF_THR)
+                            save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
+                            all_ims.append(image_np)
+        if LOG_FILE != None:
+            box_time = time.clock()
+        # Saves annotated frames to a .mp4 file
+        if not CSV_ONLY:
+            imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
 
     ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg") # Gets list of all saved images
     ims.sort() # Sorts alphabetically
@@ -180,7 +196,10 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         for i in range(len(ims_base)-1): # For each frame
             box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
             if (box_dat_sub1.shape[0] > 0) & (box_dat_sub2.shape[0] > 0):
-                min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
+                if EDGELIST_FILE != None:
+                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2, edge_file=EDGELIST_FILE, frame_num1=ims_base[i], frame_num2=ims_base[i+1])
+                else:
+                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
                 intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
                 dy_comps = np.concatenate((dy_comps, norm_dy))
                 dx_comps = np.concatenate((dx_comps, norm_dx))
@@ -199,9 +218,11 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         for i in range(len(ims_base)-1): # For each frame
             im2 = plt.imread(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{ims_base[i+1]}_annot.jpg") # Read in the next frame as an array
             box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
-            if (box_dat1.shape[0] > 0) & (box_dat2.shape[0] > 0):
-                min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
-
+            if (box_dat_sub1.shape[0] > 0) & (box_dat_sub2.shape[0] > 0):
+                if EDGELIST_FILE != None:
+                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2, edge_file=EDGELIST_FILE, frame_num1=ims_base[i], frame_num2=ims_base[i+1])
+                else:
+                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
                 intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
                 dy_comps = np.concatenate((dy_comps, norm_dy))
                 dx_comps = np.concatenate((dx_comps, norm_dx))

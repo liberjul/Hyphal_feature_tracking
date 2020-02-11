@@ -121,6 +121,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                 print("Overwritting annotated images")
         if not os.path.exists(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/") and not CSV_ONLY:
             os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
+        nn_clock_start = time.clock()
         with detection_graph.as_default():
             with tf.compat.v1.Session(graph=detection_graph) as sess:
                 with open(PATH_TO_CSV, "w") as file:
@@ -129,7 +130,6 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                     test_ims.sort()
                     all_ims = []
                     for i in test_ims:
-                        print(i)
                         # Read frame from camera
                         image_np = plt.imread(i).copy()
                         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
@@ -167,6 +167,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                                 min_score_thresh=CONF_THR)
                             save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
                             all_ims.append(image_np)
+                        print(i, "\t", time.clock() - nn_clock_start)
         if LOG_FILE != None:
             box_time = time.clock()
         # Saves annotated frames to a .mp4 file

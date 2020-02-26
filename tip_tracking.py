@@ -55,12 +55,20 @@ def interval_hist(intervals, pref):
     plt.title("Distribution of hyphal tip speeds")
     plt.savefig(F"{pref}speed_distribution.jpg", dpi=1000)
 
+def segment_image(split, im):
+    h, w = im.shape[1:3]
+    h_pix, w_pix = int(h/split), int(w/split)
+    im_list = []
+    for x, y in zip(np.repeat(np.arange(split), split), np.tile(np.arange(split), split)):
+        im_list.append(im[:,h_pix*x:h_pix*(x+1),w_pix*y:w_pix*(y+1),:])
+    return im_list
+
 def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
     PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
     FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
-     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None, LOG_FILE=None,
-     EDGELIST_FILE=None, REANNOTATE=True):
+    NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None, LOG_FILE=None,
+    EDGELIST_FILE=None, REANNOTATE=True, SPLIT=None):
 
     '''
     Args:
@@ -81,6 +89,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         LOG_FILE: Name for log file for timing data.
         EDGELIST_FILE: Name for a file to export nearest
         REANNOTATE: If rerunning annotation should be performed.
+        SPLIT: Int (None) - If not none, segments image into SPLIT^2 images before prediction.
     '''
     if LOG_FILE != None:
         d_graph, l_and_c, box_time, int_create_time, int_exp_time, vid_exp_time = 0., 0., 0., 0., 0., 0.
@@ -134,40 +143,88 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                         image_np = plt.imread(i).copy()
                         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
                         image_np_expanded = np.expand_dims(image_np, axis=0)
-                        # Extract image tensor
-                        image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-                        # Extract detection boxes
-                        boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
-                        # Extract detection scores
-                        scores = detection_graph.get_tensor_by_name('detection_scores:0')
-                        # Extract detection classes
-                        classes = detection_graph.get_tensor_by_name('detection_classes:0')
-                        # Extract number of detectionsd
-                        num_detections = detection_graph.get_tensor_by_name(
-                            'num_detections:0')
-                        # Actual detection.
-                        (boxes, scores, classes, num_detections) = sess.run(
-                            [boxes, scores, classes, num_detections],
-                            feed_dict={image_tensor: image_np_expanded})
-                        # Visualization of the results of a detection.
-                        buffer = ""
-                        for x in range(np.squeeze(boxes).shape[0]):
-                            buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
-                        file.write(buffer)
-                        if not CSV_ONLY:
-                            vis_util.visualize_boxes_and_labels_on_image_array(
-                                image_np,
-                                np.squeeze(boxes),
-                                np.squeeze(classes).astype(np.int32),
-                                np.squeeze(scores),
-                                category_index,
-                                use_normalized_coordinates=True,
-                                line_thickness=4,
-                                max_boxes_to_draw=100,
-                                min_score_thresh=CONF_THR)
-                            save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
-                            all_ims.append(image_np)
-                        print(i, "\t", time.clock() - nn_clock_start)
+                        if SPLIT == None:
+                            # Extract image tensor
+                            image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+                            # Extract detection boxes
+                            boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+                            # Extract detection scores
+                            scores = detection_graph.get_tensor_by_name('detection_scores:0')
+                            # Extract detection classes
+                            classes = detection_graph.get_tensor_by_name('detection_classes:0')
+                            # Extract number of detectionsd
+                            num_detections = detection_graph.get_tensor_by_name(
+                                'num_detections:0')
+                            (boxes, scores, classes, num_detections) = sess.run(
+                                [boxes, scores, classes, num_detections],
+                                feed_dict={image_tensor: image_np_expanded}) # Actual detection.
+                            # Visualization of the results of a detection.
+                            buffer = ""
+                            for x in range(np.squeeze(boxes).shape[0]):
+                                buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
+                            file.write(buffer)
+                            if not CSV_ONLY:
+                                vis_util.visualize_boxes_and_labels_on_image_array(
+                                    image_np,
+                                    np.squeeze(boxes),
+                                    np.squeeze(classes).astype(np.int32),
+                                    np.squeeze(scores),
+                                    category_index,
+                                    use_normalized_coordinates=True,
+                                    line_thickness=4,
+                                    max_boxes_to_draw=100,
+                                    min_score_thresh=CONF_THR)
+                                save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
+                                all_ims.append(image_np)
+                            print(i, "\t", time.clock() - nn_clock_start)
+                        else:
+                            # Extract image tensor
+                            image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+                            spl_fac = 1/SPLIT
+                            im_segmented_list = segment_image(SPLIT, image_np_expanded)
+                            boxes_all, scores_all, classes_all = [np.empty((1,0,4)), np.empty((1,0)), np.empty((1,0))]
+                            for r, c, im_seg in zip(np.repeat(np.arange(SPLIT), SPLIT), np.tile(np.arange(SPLIT), SPLIT), im_segmented_list):
+                                # Actual detection.
+                                boxes_seg = detection_graph.get_tensor_by_name('detection_boxes:0')
+                                # Extract detection scores
+                                scores_seg = detection_graph.get_tensor_by_name('detection_scores:0')
+                                # Extract detection classes
+                                classes_seg = detection_graph.get_tensor_by_name('detection_classes:0')
+                                # Extract number of detectionsd
+                                num_detections_seg = detection_graph.get_tensor_by_name(
+                                    'num_detections:0')
+                                buffer = ""
+                                (boxes_seg, scores_seg, classes_seg, num_detections_seg) = sess.run(
+                                    [boxes_seg, scores_seg, classes_seg, num_detections_seg],
+                                    feed_dict={image_tensor: im_seg})
+                                # Visualization of the results of a detection.
+                                buffer = ""
+                                for x in range(np.squeeze(boxes_seg).shape[0]):
+                                    buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes_seg)[x,0]*spl_fac + r*spl_fac},{np.squeeze(boxes_seg)[x,1]*spl_fac + c*spl_fac},"
+                                    buffer += F"{np.squeeze(boxes_seg)[x,2]*spl_fac + r*spl_fac},{np.squeeze(boxes_seg)[x,3]*spl_fac + c*spl_fac},{np.squeeze(scores_seg)[x]},{np.squeeze(classes_seg)[x]}\n"
+                                file.write(buffer)
+                                boxes_seg = np.stack((boxes_seg[:,:,0]*spl_fac + r*spl_fac,
+                                                            boxes_seg[:,:,1]*spl_fac + c*spl_fac,
+                                                            boxes_seg[:,:,2]*spl_fac + r*spl_fac,
+                                                            boxes_seg[:,:,3]*spl_fac + c*spl_fac), axis=-1)
+                                boxes_all = np.hstack((boxes_all, boxes_seg))
+                                scores_all = np.hstack((scores_all, scores_seg))
+                                classes_all = np.hstack((classes_all, classes_seg))
+                            if not CSV_ONLY:
+                                print("Boxes shape, ", boxes_all.shape, classes_all.shape, scores_all.shape)
+                                vis_util.visualize_boxes_and_labels_on_image_array(
+                                    image_np,
+                                    np.squeeze(boxes_all),
+                                    np.squeeze(classes_all).astype(np.int32),
+                                    np.squeeze(scores_all),
+                                    category_index,
+                                    use_normalized_coordinates=True,
+                                    line_thickness=4,
+                                    max_boxes_to_draw=100*SPLIT**2,
+                                    min_score_thresh=CONF_THR)
+                                save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
+                                all_ims.append(image_np)
+                            print(i, "\t", time.clock() - nn_clock_start)
         if LOG_FILE != None:
             box_time = time.clock()
         # Saves annotated frames to a .mp4 file
@@ -298,7 +355,7 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
     PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
     FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
-     NUM_CLASSES=1, PATHS_TO_CSVS=None, SPEED_DAT_CSVS=None, LOG_FILE=None):
+     NUM_CLASSES=1, PATHS_TO_CSVS=None, SPEED_DAT_CSVS=None, LOG_FILE=None, SPLIT=None):
 
     '''
     Args:
@@ -367,39 +424,86 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
                         image_np = plt.imread(i).copy()
                         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
                         image_np_expanded = np.expand_dims(image_np, axis=0)
-                        # Extract image tensor
-                        image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-                        # Extract detection boxes
-                        boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
-                        # Extract detection scores
-                        scores = detection_graph.get_tensor_by_name('detection_scores:0')
-                        # Extract detection classes
-                        classes = detection_graph.get_tensor_by_name('detection_classes:0')
-                        # Extract number of detectionsd
-                        num_detections = detection_graph.get_tensor_by_name(
-                            'num_detections:0')
-                        # Actual detection.
-                        (boxes, scores, classes, num_detections) = sess.run(
-                            [boxes, scores, classes, num_detections],
-                            feed_dict={image_tensor: image_np_expanded})
-                        # Visualization of the results of a detection.
-                        buffer = ""
-                        for x in range(np.squeeze(boxes).shape[0]):
-                            buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
-                        file.write(buffer)
-                        if not CSV_ONLY:
-                            vis_util.visualize_boxes_and_labels_on_image_array(
-                                image_np,
-                                np.squeeze(boxes),
-                                np.squeeze(classes).astype(np.int32),
-                                np.squeeze(scores),
-                                category_index,
-                                use_normalized_coordinates=True,
-                                line_thickness=4,
-                                max_boxes_to_draw=100,
-                                min_score_thresh=CONF_THR)
-                            save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
-                            all_ims.append(image_np)
+                        if SPLIT == None:
+                            # Extract image tensor
+                            image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+                            # Extract detection boxes
+                            boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+                            # Extract detection scores
+                            scores = detection_graph.get_tensor_by_name('detection_scores:0')
+                            # Extract detection classes
+                            classes = detection_graph.get_tensor_by_name('detection_classes:0')
+                            # Extract number of detectionsd
+                            num_detections = detection_graph.get_tensor_by_name(
+                                'num_detections:0')
+                            # Actual detection.
+                            (boxes, scores, classes, num_detections) = sess.run(
+                                [boxes, scores, classes, num_detections],
+                                feed_dict={image_tensor: image_np_expanded})
+                            # Visualization of the results of a detection.
+                            buffer = ""
+                            for x in range(np.squeeze(boxes).shape[0]):
+                                buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes)[x,0]},{np.squeeze(boxes)[x,1]},{np.squeeze(boxes)[x,2]},{np.squeeze(boxes)[x,3]},{np.squeeze(scores)[x]},{np.squeeze(classes)[x]}\n"
+                            file.write(buffer)
+                            if not CSV_ONLY:
+                                vis_util.visualize_boxes_and_labels_on_image_array(
+                                    image_np,
+                                    np.squeeze(boxes),
+                                    np.squeeze(classes).astype(np.int32),
+                                    np.squeeze(scores),
+                                    category_index,
+                                    use_normalized_coordinates=True,
+                                    line_thickness=4,
+                                    max_boxes_to_draw=100,
+                                    min_score_thresh=CONF_THR)
+                                save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
+                                all_ims.append(image_np)
+                        else:
+                            image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+                            spl_fac = 1/SPLIT
+                            im_segmented_list = segment_image(SPLIT, image_np_expanded)
+                            boxes_all, scores_all, classes_all = [np.empty((1,0,4)), np.empty((1,0)), np.empty((1,0))]
+                            for r, c, im_seg in zip(np.repeat(np.arange(SPLIT), SPLIT), np.tile(np.arange(SPLIT), SPLIT), im_segmented_list):
+                                # Actual detection.
+                                boxes_seg = detection_graph.get_tensor_by_name('detection_boxes:0')
+                                # Extract detection scores
+                                scores_seg = detection_graph.get_tensor_by_name('detection_scores:0')
+                                # Extract detection classes
+                                classes_seg = detection_graph.get_tensor_by_name('detection_classes:0')
+                                # Extract number of detectionsd
+                                num_detections_seg = detection_graph.get_tensor_by_name(
+                                    'num_detections:0')
+                                buffer = ""
+                                (boxes_seg, scores_seg, classes_seg, num_detections_seg) = sess.run(
+                                    [boxes_seg, scores_seg, classes_seg, num_detections_seg],
+                                    feed_dict={image_tensor: im_seg})
+                                # Visualization of the results of a detection.
+                                buffer = ""
+                                for x in range(np.squeeze(boxes_seg).shape[0]):
+                                    buffer += F"{os.path.basename(i).split('.')[0]},{np.squeeze(boxes_seg)[x,0]*spl_fac + r*spl_fac},{np.squeeze(boxes_seg)[x,1]*spl_fac + c*spl_fac},"
+                                    buffer += F"{np.squeeze(boxes_seg)[x,2]*spl_fac + r*spl_fac},{np.squeeze(boxes_seg)[x,3]*spl_fac + c*spl_fac},{np.squeeze(scores_seg)[x]},{np.squeeze(classes_seg)[x]}\n"
+                                file.write(buffer)
+                                boxes_seg = np.stack((boxes_seg[:,:,0]*spl_fac + r*spl_fac,
+                                                            boxes_seg[:,:,1]*spl_fac + c*spl_fac,
+                                                            boxes_seg[:,:,2]*spl_fac + r*spl_fac,
+                                                            boxes_seg[:,:,3]*spl_fac + c*spl_fac), axis=-1)
+                                boxes_all = np.hstack((boxes_all, boxes_seg))
+                                scores_all = np.hstack((scores_all, scores_seg))
+                                classes_all = np.hstack((classes_all, classes_seg))
+                            if not CSV_ONLY:
+                                print("Boxes shape, ", boxes_all.shape, classes_all.shape, scores_all.shape)
+                                vis_util.visualize_boxes_and_labels_on_image_array(
+                                    image_np,
+                                    np.squeeze(boxes_all),
+                                    np.squeeze(classes_all).astype(np.int32),
+                                    np.squeeze(scores_all),
+                                    category_index,
+                                    use_normalized_coordinates=True,
+                                    line_thickness=4,
+                                    max_boxes_to_draw=100*SPLIT**2,
+                                    min_score_thresh=CONF_THR)
+                                save_image(image_np, F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{os.path.basename(i).split('.')[0]}_annot.jpg")
+                                all_ims.append(image_np)
     if SPEED_DAT_CSVS == None:
         SPEED_DAT_CSVS = []
         for PREF in PREFS:

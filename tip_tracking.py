@@ -27,6 +27,8 @@ def calc_velocity(box_dat1, box_dat2, edge_file=None, frame_num1=None, frame_num
     dist = distance_matrix(box_dat1, box_dat2) # calculate euclidean distances between all high-confidence tips
     min_dists = np.amin(dist, axis=0) # Find the minimum distance between boxes
     arg_min_dist = np.argmin(dist, axis=0) # Find the index of the minimum distance
+    mid_y = (box_dat2[np.arange(len(min_dists)), 0] + box_dat1[arg_min_dist, 0])/2 # y coord of segment midpoint
+    mid_x = (box_dat2[np.arange(len(min_dists)), 1] + box_dat1[arg_min_dist, 1])/2 # x coord of segment midpoint
     delta_y = box_dat2[np.arange(len(min_dists)), 0] - box_dat1[arg_min_dist, 0] # Change in y
     delta_x = box_dat2[np.arange(len(min_dists)), 1] - box_dat1[arg_min_dist, 1] # Change in x
     norm_dy, norm_dx = delta_y/min_dists, delta_x/min_dists # normalize by distance
@@ -39,7 +41,7 @@ def calc_velocity(box_dat1, box_dat2, edge_file=None, frame_num1=None, frame_num
             buffer += F"{frame_num2}_{i:02d},{frame_num1}_{rev_arg_min_dist[i]:02d},{box_dat2[i,0]},{box_dat2[i,1]},{box_dat1[rev_arg_min_dist[i],0]},{box_dat1[rev_arg_min_dist[i],1]},{rev_min_dists[i]}\n"
         with open(edge_file, "a+") as ofile:
             ofile.write(buffer)
-    return min_dists, norm_dy, norm_dx
+    return min_dists, norm_dy, norm_dx, mid_y, mid_x
 
 def time_scatter_plot(times, intervals, pref):
     plt.scatter(times, intervals)
@@ -65,8 +67,8 @@ def segment_image(split, im):
 
 def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
-    PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
-    FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
+    PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_HEIGHT=989.9,
+    FRAME_WIDTH=1319.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None, LOG_FILE=None,
     EDGELIST_FILE=None, REANNOTATE=True, SPLIT=None):
 
@@ -78,7 +80,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         PATH_TO_IMS: Path to image files.
         PATH_TO_ANNOT_IMS: Path to directory to store annotated images.
         CSV_ONLY: True if only comma-seperated value file outputs is desired.
-        FRAME_LENGTH: Frame length in um, depends on microscope and magnification.
+        FRAME_HEIGHT: Frame HEIGHT in um, depends on microscope and magnification.
         FRAME_WIDTH: Frame width in um, depends on microscope and magnification.
         FRAME_TIME: Minutes between frames.
         CONF_THR: Confidence threshold to use for annotations, as a float.
@@ -239,12 +241,13 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
 
     intervals = np.array([]) # array to store distance intervals between tips
     times = np.array([]) # array to store times for each interval
+    mid_y_arr, mid_x_arr = np.array([]), np.array([]) # x and y coords midpoint of tip-connecting segment
     dy_comps, dx_comps = np.array([]), np.array([]) # normalized x and y components of tip movement
     medians = [] # List to store median distance for each frame
     box_dat = pd.read_csv(PATH_TO_CSV) # Box position data, also tip position data
 
     # Extract center coordinates of boxes
-    box_dat["ycoord"] = (box_dat.box1 + box_dat.box3)/2*(FRAME_LENGTH)
+    box_dat["ycoord"] = (box_dat.box1 + box_dat.box3)/2*(FRAME_HEIGHT)
     box_dat["xcoord"] = (box_dat.box2 + box_dat.box4)/2*(FRAME_WIDTH)
 
     # Select frame which meet these criterea: 1) the first frame and 2) are above confidence threshold
@@ -255,10 +258,12 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
             box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
             if (box_dat_sub1.shape[0] > 0) & (box_dat_sub2.shape[0] > 0):
                 if EDGELIST_FILE != None:
-                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2, edge_file=EDGELIST_FILE, frame_num1=ims_base[i], frame_num2=ims_base[i+1])
+                    min_dists, norm_dy, norm_dx, mid_y, mid_x = calc_velocity(box_dat_sub1, box_dat_sub2, edge_file=EDGELIST_FILE, frame_num1=ims_base[i], frame_num2=ims_base[i+1])
                 else:
-                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
+                    min_dists, norm_dy, norm_dx, mid_y, mid_x = calc_velocity(box_dat_sub1, box_dat_sub2)
                 intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
+                mid_y_arr = np.concatenate((mid_y_arr, mid_y))
+                mid_x_arr = np.concatenate((mid_x_arr, mid_x))
                 dy_comps = np.concatenate((dy_comps, norm_dy))
                 dx_comps = np.concatenate((dx_comps, norm_dx))
                 times = np.concatenate((times, np.repeat(i*FRAME_TIME, len(min_dists)))) # Add frame number to times
@@ -266,7 +271,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         if LOG_FILE != None:
             int_create_time = time.clock()
         # Create dataframe to store output
-        speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
+        speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps, "Y_mid" : mid_y_arr, "X_mid" : mid_x_arr})
         # Export dataframe as CSV file
         speed_dat.to_csv(SPEED_DAT_CSV)
         if LOG_FILE != None:
@@ -278,10 +283,12 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
             box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
             if (box_dat_sub1.shape[0] > 0) & (box_dat_sub2.shape[0] > 0):
                 if EDGELIST_FILE != None:
-                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2, edge_file=EDGELIST_FILE, frame_num1=ims_base[i], frame_num2=ims_base[i+1])
+                    min_dists, norm_dy, norm_dx, mid_y, mid_x = calc_velocity(box_dat_sub1, box_dat_sub2, edge_file=EDGELIST_FILE, frame_num1=ims_base[i], frame_num2=ims_base[i+1])
                 else:
-                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
+                    min_dists, norm_dy, norm_dx, mid_y, mid_x = calc_velocity(box_dat_sub1, box_dat_sub2)
                 intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
+                mid_y_arr = np.concatenate((mid_y_arr, mid_y))
+                mid_x_arr = np.concatenate((mid_x_arr, mid_x))
                 dy_comps = np.concatenate((dy_comps, norm_dy))
                 dx_comps = np.concatenate((dx_comps, norm_dx))
 
@@ -318,7 +325,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
             # Next frame
             box_dat_sub1 = box_dat_sub2
         # Create dataframe to store output
-        speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
+        speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps, "Y_mid" : mid_y_arr, "X_mid" : mid_x_arr})
         # Export dataframe as CSV file
         speed_dat.to_csv(SPEED_DAT_CSV)
         # Slice the intervals and time array to remove "outliers"
@@ -353,9 +360,9 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
 
 def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
-    PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_LENGTH=1319.9,
-    FRAME_WIDTH=989.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
-     NUM_CLASSES=1, PATHS_TO_CSVS=None, SPEED_DAT_CSVS=None, LOG_FILE=None, SPLIT=None):
+    PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_HEIGHT=989.9,
+    FRAME_WIDTH=1319.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
+    NUM_CLASSES=1, PATHS_TO_CSVS=None, SPEED_DAT_CSVS=None, LOG_FILE=None, SPLIT=None):
 
     '''
     Args:
@@ -365,7 +372,7 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
         PATH_TO_IMS: Path to image files.
         PATH_TO_ANNOT_IMS: Path to directory to store annotated images.
         CSV_ONLY: True if only comma-seperated value file outputs is desired.
-        FRAME_LENGTH: Frame length in um, depends on microscope and magnification.
+        FRAME_HEIGHT: Frame HEIGHT in um, depends on microscope and magnification.
         FRAME_WIDTH: Frame width in um, depends on microscope and magnification.
         FRAME_TIME: Minutes between frames.
         CONF_THR: Confidence threshold to use for annotations, as a float.
@@ -523,12 +530,13 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
 
         intervals = np.array([]) # array to store distance intervals between tips
         times = np.array([]) # array to store times for each interval
+        mid_y_arr, mid_x_arr = np.array([]), np.array([]) # x and y coords midpoint of tip-connecting segment
         dy_comps, dx_comps = np.array([]), np.array([]) # normalized x and y components of tip movement
         medians = [] # List to store median distance for each frame
         box_dat = pd.read_csv(PATH_TO_CSV) # Box position data, also tip position data
 
         # Extract center coordinates of boxes
-        box_dat["ycoord"] = (box_dat.box1 + box_dat.box3)/2*(FRAME_LENGTH)
+        box_dat["ycoord"] = (box_dat.box1 + box_dat.box3)/2*(FRAME_HEIGHT)
         box_dat["xcoord"] = (box_dat.box2 + box_dat.box4)/2*(FRAME_WIDTH)
 
         # Select frame which meet these criterea: 1) the first frame and 2) are above confidence threshold
@@ -538,8 +546,10 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
             for i in range(len(ims_base)-1): # For each frame
                 box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
                 if (box_dat_sub1.shape[0] > 0) & (box_dat_sub2.shape[0] > 0):
-                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
+                    min_dists, norm_dy, norm_dx, mid_y, mid_x = calc_velocity(box_dat_sub1, box_dat_sub2)
                     intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
+                    mid_y_arr = np.concatenate((mid_y_arr, mid_y))
+                    mid_x_arr = np.concatenate((mid_x_arr, mid_x))
                     dy_comps = np.concatenate((dy_comps, norm_dy))
                     dx_comps = np.concatenate((dx_comps, norm_dx))
                     times = np.concatenate((times, np.repeat(i*FRAME_TIME, len(min_dists)))) # Add frame number to times
@@ -547,7 +557,7 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
             if LOG_FILE != None:
                 int_create_time = time.clock()
             # Create dataframe to store output
-            speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
+            speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps, "Y_mid" : mid_y_arr, "X_mid" : mid_x_arr})
             # Export dataframe as CSV file
             speed_dat.to_csv(SPEED_DAT_CSV)
             if LOG_FILE != None:
@@ -558,9 +568,11 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
                 im2 = plt.imread(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh/{ims_base[i+1]}_annot.jpg") # Read in the next frame as an array
                 box_dat_sub2 = np.array(box_dat[(box_dat.Frame == ims_base[i+1]) & (box_dat.score > CONF_THR)].iloc[:,7:]) # Extract the next frame's box data
                 if (box_dat1.shape[0] > 0) & (box_dat2.shape[0] > 0):
-                    min_dists, norm_dy, norm_dx = calc_velocity(box_dat_sub1, box_dat_sub2)
+                    min_dists, norm_dy, norm_dx, mid_y, mid_x = calc_velocity(box_dat_sub1, box_dat_sub2)
 
                     intervals = np.concatenate((intervals, min_dists)) # Add minimum distances to intervals array
+                    mid_y_arr = np.concatenate((mid_y_arr, mid_y))
+                    mid_x_arr = np.concatenate((mid_x_arr, mid_x))
                     dy_comps = np.concatenate((dy_comps, norm_dy))
                     dx_comps = np.concatenate((dx_comps, norm_dx))
 
@@ -597,7 +609,7 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
                 # Next frame
                 box_dat_sub1 = box_dat_sub2
             # Create dataframe to store output
-            speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps})
+            speed_dat = pd.DataFrame({"Time" : times, "Speed" : intervals, "Y_component" : dy_comps, "X_component" : dx_comps, "Y_mid" : mid_y_arr, "X_mid" : mid_x_arr})
             # Export dataframe as CSV file
             speed_dat.to_csv(SPEED_DAT_CSV)
             # Slice the intervals and time array to remove "outliers"

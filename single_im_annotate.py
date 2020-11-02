@@ -50,6 +50,9 @@ with detection_graph.as_default():
 with detection_graph.as_default():
     with tf.compat.v1.Session(graph=detection_graph) as sess:
         image_np = plt.imread(args.file).copy()
+        if len(image_np.shape) == 2 or image_np.shape[2] == 1:
+            print("Converting grayscale image ...")
+            image_np = np.stack((image_np,)*3, axis=-1)
         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
         # Extract image tensor

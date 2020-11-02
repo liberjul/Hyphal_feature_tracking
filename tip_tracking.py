@@ -143,6 +143,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
                     for i in test_ims:
                         # Read frame from camera
                         image_np = plt.imread(i).copy()
+                        if len(image_np.shape) == 2 or image_np.shape[2] == 1:
+                            image_np = np.stack((image_np,)*3, axis=-1)
                         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
                         image_np_expanded = np.expand_dims(image_np, axis=0)
                         if SPLIT == None:
@@ -429,6 +431,8 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
                         print(i)
                         # Read frame from camera
                         image_np = plt.imread(i).copy()
+                        if len(image_np.shape) == 2 or image_np.shape[2] == 1:
+                            image_np = np.stack((image_np,)*3, axis=-1)
                         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
                         image_np_expanded = np.expand_dims(image_np, axis=0)
                         if SPLIT == None:

@@ -70,7 +70,8 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
     PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_HEIGHT=989.9,
     FRAME_WIDTH=1319.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
     NUM_CLASSES=1, PATH_TO_CSV=None, SPEED_DAT_CSV=None, LOG_FILE=None,
-    EDGELIST_FILE=None, REANNOTATE=True, SPLIT=None):
+    EDGELIST_FILE=None, REANNOTATE=True, SPLIT=None,
+    FILE_EXT="jpg"):
 
     '''
     Args:
@@ -92,6 +93,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         EDGELIST_FILE: Name for a file to export nearest
         REANNOTATE: If rerunning annotation should be performed.
         SPLIT: Int (None) - If not none, segments image into SPLIT^2 images before prediction.
+        FILE_EXT: str ('jpg') File extension of images used for annotation. Must be readable by matplotlib.plyplot.imread().
     '''
     if LOG_FILE != None:
         d_graph, l_and_c, box_time, int_create_time, int_exp_time, vid_exp_time = 0., 0., 0., 0., 0., 0.
@@ -137,7 +139,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
             with tf.compat.v1.Session(graph=detection_graph) as sess:
                 with open(PATH_TO_CSV, "w") as file:
                     file.write("Frame,box1,box2,box3,box4,score,class\n")
-                    test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg")
+                    test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.{FILE_EXT}")
                     test_ims.sort()
                     all_ims = []
                     for i in test_ims:
@@ -235,7 +237,7 @@ def use_model(PREF, PATH_TO_CKPT='./training/frozen_inference_graph_v4.pb',
         if not CSV_ONLY:
             imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
 
-    ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg") # Gets list of all saved images
+    ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.{FILE_EXT}") # Gets list of all saved images
     ims.sort() # Sorts alphabetically
     ims_base = [] # List to store basenames without extension
     for i in ims:
@@ -364,7 +366,8 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
     PATH_TO_LABELS='./annotations/label_map.pbtxt', PATH_TO_IMS = './test_ims/',
     PATH_TO_ANNOT_IMS='./model_annots/', CSV_ONLY=False, FRAME_HEIGHT=989.9,
     FRAME_WIDTH=1319.9, FRAME_TIME=1.0, CONF_THR=0.3, OUTLIER_PROP=0.80,
-    NUM_CLASSES=1, PATHS_TO_CSVS=None, SPEED_DAT_CSVS=None, LOG_FILE=None, SPLIT=None):
+    NUM_CLASSES=1, PATHS_TO_CSVS=None, SPEED_DAT_CSVS=None, LOG_FILE=None, SPLIT=None,
+    FILE_EXT="jpg"):
 
     '''
     Args:
@@ -383,6 +386,8 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
         PATHS_TO_CSVS: Path to exported CSVs of box annotations, as a list. Must correspond to order of PREFS.
         SPEED_DAT_CSVS: Name for speed data files, as a list. Must correspond to order of PREFS.
         LOG_FILE: Name for log file for timing data.
+        SPLIT: Int (None) - If not none, segments image into SPLIT^2 images before prediction.
+        FILE_EXT: str ('jpg') File extension of images used for annotation. Must be readable by matplotlib.plyplot.imread().
     '''
 
     if LOG_FILE != None:
@@ -424,7 +429,7 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
                     os.mkdir(F"{PATH_TO_ANNOT_IMS}{PREF}annot_{CONF_PER}pc_thresh_w_hist/")
                 with open(PATH_TO_CSV, "w") as file:
                     file.write("Frame,box1,box2,box3,box4,score,class\n")
-                    test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg")
+                    test_ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.{FILE_EXT}")
                     test_ims.sort()
                     all_ims = []
                     for i in test_ims:
@@ -526,7 +531,7 @@ def use_model_multiple(PREFS, PATH_TO_CKPT='./training/frozen_inference_graph_v4
         if not CSV_ONLY:
             imageio.mimsave(F"./model_annots/{PREF}annot_{CONF_PER}pc_thresh.mp4", all_ims, fps=15)                # Display output
 
-        ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.jpg") # Gets list of all saved images
+        ims = glob.glob(F"{PATH_TO_IMS}{PREF}*.{FILE_EXT}") # Gets list of all saved images
         ims.sort() # Sorts alphabetically
         ims_base = [] # List to store basenames without extension
         for i in ims:
